@@ -1,0 +1,109 @@
+// Assignment 7 - MongoDB Shell (mongosh) solutions
+// run: use assignment7   before any of this
+
+use assignment7
+
+// 1. explicit collection "books" with validator: title must be a non-empty string
+db.createCollection("books", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["title"],
+      properties: {
+        title: {
+          bsonType: "string",
+          minLength: 1,
+          description: "title is required and must be a non-empty string"
+        }
+      }
+    }
+  }
+})
+
+// 2. implicit collection "authors" - just insert, mongo creates it
+db.authors.insertOne({ name: "Author1", nationality: "British" })
+
+// 3. capped collection "logs", 1MB
+db.createCollection("logs", { capped: true, size: 1024 * 1024 })
+
+// 4. index on books.title
+db.books.createIndex({ title: 1 })
+
+// 5. insert one document into books
+db.books.insertOne({
+  title: "Book1",
+  author: "Ali",
+  year: 1937,
+  genres: ["Fantasy", "Adventure"]
+})
+
+// 6. insert 3+ documents into books
+db.books.insertMany([
+  { title: "Future", author: "George Orwell", year: 2020, genres: ["Science Fiction"] },
+  { title: "To Kill a Mockingbird", author: "Harper Lee", year: 1960, genres: ["Classic", "Fiction"] },
+  { title: "Brave New World", author: "Aldous Huxley", year: 2006, genres: ["Dystopian", "Science Fiction"] }
+])
+
+// 7. insert a log (book_id should match an actual _id from books)
+db.logs.insertOne({
+  book_id: ObjectId("64b5c2d8a123456ef8901"),
+  action: "borrowed"
+})
+
+// 8. update book "Future", change year to 2022
+db.books.updateOne(
+  { title: "Future" },
+  { $set: { year: 2022 } }
+)
+
+// 9. find a book by title
+db.books.findOne({ title: "Brave New World" })
+
+// 10. books published between 1990 and 2010
+db.books.find({ year: { $gte: 1990, $lte: 2010 } })
+
+// 11. books where genre includes "Science Fiction"
+db.books.find({ genres: "Science Fiction" })
+
+// 12. skip first 2, limit next 3, sorted by year desc
+db.books.find().sort({ year: -1 }).skip(2).limit(3)
+
+// 13. books where year is stored as an actual int
+db.books.find({ year: { $type: "int" } })
+
+// 14. books where genres does not include "Horror" or "Science Fiction"
+db.books.find({ genres: { $nin: ["Horror", "Science Fiction"] } })
+
+// 15. delete books published before 2000
+db.books.deleteMany({ year: { $lt: 2000 } })
+
+// 16. aggregate: books after 2000, sorted year desc
+db.books.aggregate([
+  { $match: { year: { $gt: 2000 } } },
+  { $sort: { year: -1 } }
+])
+
+// 17. aggregate: books after 2000, only title/author/year
+db.books.aggregate([
+  { $match: { year: { $gt: 2000 } } },
+  { $project: { _id: 0, title: 1, author: 1, year: 1 } }
+])
+
+// 18. aggregate: unwind genres into separate documents
+db.books.aggregate([
+  { $unwind: "$genres" },
+  { $project: { _id: 0, title: 1, genres: 1 } }
+])
+
+// 19. aggregate: join books and logs
+db.logs.aggregate([
+  {
+    $lookup: {
+      from: "books",
+      localField: "book_id",
+      foreignField: "_id",
+      as: "book_details"
+    }
+  },
+  { $project: { _id: 0, action: 1, "book_details.title": 1, "book_details.author": 1, "book_details.year": 1 } }
+])
